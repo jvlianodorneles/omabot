@@ -14,37 +14,48 @@ BarWidget {
   readonly property int syncIntervalHoursSetting: Number(setting("syncIntervalHours", 12))
   readonly property string syncScriptPath: Qt.resolvedUrl("scripts/omabot-sync.py").toString().replace(/^file:\/\//, "")
 
-  function open(): void {
+  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+  readonly property real openPanelIndicatorWidth: button.labelWidth
+  readonly property real openPanelIndicatorHeight: Math.max(Style.space(10), Math.round(Style.bar.iconSlot * 0.55))
+
+  function open() {
     if (panelLoader.item) panelLoader.item.open()
   }
 
-  function close(): void {
+  function close() {
     if (panelLoader.item) panelLoader.item.close()
   }
 
-  function toggle(): void {
+  function toggle() {
     if (panelLoader.item) panelLoader.item.toggle()
   }
 
-  function refresh(): void {
+  function closeForPopoutSwitch() {
+    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+  }
+
+  function refresh() {
     if (panelLoader.item) panelLoader.item.triggerSync()
   }
 
-  function injectPanel(): void {
-    if (!panelLoader.item) return
-    panelLoader.item.anchorItem = button
-    panelLoader.item.hostWidget = root
-    panelLoader.item.bar = root.bar
+  function injectPanel() {
+    var target = panelLoader.item
+    if (!target) return
+    if ("bar" in target) target.bar = root.bar
+    if ("settings" in target) target.settings = root.settings
+    if ("anchorItem" in target) target.anchorItem = button
+    if ("hostWidget" in target) target.hostWidget = root
   }
 
   onBarChanged: injectPanel()
+  onSettingsChanged: injectPanel()
 
   // Panel loader for the popup window
   Loader {
     id: panelLoader
     active: true
     source: Qt.resolvedUrl("Panel.qml")
-    visible: false
     onLoaded: {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
@@ -99,10 +110,10 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: root.vertical || !root.showLabelSetting ? "󰚩" : "󰚩 omabot"
-    active: panelLoader.item ? panelLoader.item.opened : false
-    dimmed: panelLoader.item ? !panelLoader.item.opened : true
+    active: root.opened
+    dimmed: !root.opened
     useActiveColor: true
-    activeColor: bar ? bar.active : Color.accent
+    activeColor: bar ? bar.urgent : Color.urgent
     fontSize: Style.font.body
     horizontalMargin: 8
     verticalPadding: 2
