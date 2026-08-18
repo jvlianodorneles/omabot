@@ -10,12 +10,14 @@
 
 ## ✨ Features
 
-* **🤖 Status Bar Integration**: Displays a clean robot icon (`󰚩`) on the main bar with active states, popout coordination, and tooltips.
+* **🤖 Always-Active Status Bar Widget**: Displays a vibrant, always-active status icon on the main bar with tooltips and popout coordination.
+* **🎨 Customizable Bar Icons**: Choose from 8 preset styles (`robot` `󰚩`, `sparkles` `󱐋`, `brain` `󰘦`, `prompt` `󰅩`, `bot` `󱚡`, `chip` `󰍛`, `terminal` `󰆍`, `alien` `󰚥`) or supply your own custom Unicode/Nerd Font character. Right-click the widget to cycle through icons instantly!
+* **🎛️ Quick Scope Filter Bar**: 1-click toggle pills for `All`, `⭐ Favorites`, `🕒 History`, `📁 Custom`, and category dropdowns.
 * **🔍 Instant Search & Ranking**: Real-time keyword filtering with relevance scoring across bot names, system prompt contents, categories, integration tools, and contributor tags.
 * **📖 Full Prompt Detail View**: Click on any bot card or press `Enter` to slide into the full prompt view with complete readability, author links, and tool requirements.
 * **⭐ Favorites System**: Star your favorite bots (`󰓎` / `󰓏`) for instant 1-click access under the `"⭐ Favorites"` filter.
 * **🕒 Recent History**: Automatically tracks your recently copied bot prompts under the `"🕒 Recent"` filter.
-* **⚡ Integration Badges**: Automatically detects and displays tool tags (`Slack`, `Figma`, `Gmail`, `Gong`, `GitHub`, `Airtable`, `Salesforce`...).
+* **⚡ Integration Badges**: Automatically detects and displays tool tags with their Nerd Font icons (`󰒱 Slack`, `󰤼 Figma`, `󰇮 Gmail`, `󰆑 Gong`, `󰊤 GitHub`, `󰆼 Airtable`, `󰆑 Salesforce`, `󰸗 Google Calendar`...).
 * **📁 Custom User Bots**: Add your own custom personal/team prompts via CLI (`omabot add`) or configuration files.
 * **📋 1-Click Clipboard Copy**: One-click copying to system clipboard (Wayland `wl-copy` / X11) with instant visual feedback (icon changes to checkmark `󰄬`) and desktop notifications.
 * **🎨 Native System Theme**: Follows system colors, typography, border radii, and dark/light modes out of the box.
@@ -24,21 +26,34 @@
 
 ---
 
-## 📐 Layout & Design
+## 🎨 Bar Icon Customization
 
+You can customize the icon shown on the bar using any of the following methods:
+
+### 1. Right-Click on the Bar Widget
+Right-click on the bar icon to immediately cycle through preset styles (`robot` → `sparkles` → `brain` → `prompt` → `bot` → `chip` → `terminal` → `alien`).
+
+### 2. Via CLI (`omabot`)
+```bash
+# List all preset icon styles
+omabot icons
+
+# Set a preset icon style
+omabot set-icon sparkles
+omabot set-icon brain
+omabot set-icon terminal
+
+# Set a custom Unicode or Nerd Font glyph
+omabot set-icon "🚀"
 ```
-┌─────────────────────────────────────────────────────────┐
-│ [󰍉 Search bots...                                  ✕] │  ← Header: Centered Search Input
-│                                  CATEGORIES: [ All 󰅀 ] │  ← Header: Category Dropdown
-├─────────────────────────────────────────────────────────┤
-│ ⭐ Account Expert [Success] ⚡Slack ⚡Gmail     [ 󰆏 ]     │  ← Central: Bot List Item
-│ Set up a new bot for me dedicated to one...             │
-├─────────────────────────────────────────────────────────┤
-│ ⭐ YouTube Scriptwriter [Marketing]             [ 󰆏 ]     │
-│ Set up a new bot for me I can trigger to...             │
-├─────────────────────────────────────────────────────────┤
-│                     omabot — data source 󰌹             │  ← Footer: Clickable Reference
-└─────────────────────────────────────────────────────────┘
+
+### 3. Via `shell.json` or `manifest.json` Settings
+In `~/.config/omarchy/shell.json`:
+```json
+{
+  "id": "dorneles.omabot",
+  "iconStyle": "sparkles"
+}
 ```
 
 ---
@@ -67,8 +82,6 @@ omarchy plugin enable dorneles.omabot
 ---
 
 ## 🗑️ Uninstallation
-
-To disable or completely remove Omabot:
 
 ### Quick Uninstall Script
 
@@ -105,7 +118,7 @@ rm -f ~/.local/bin/omabot
 
 ## 🖥️ Command Line Interface (CLI)
 
-The installed `omabot` command lets you browse, star, and copy prompts directly from your terminal:
+The installed `omabot` command lets you browse, star, configure icons, and copy prompts directly from your terminal:
 
 ```bash
 # List all bots
@@ -127,6 +140,12 @@ omabot fav account-expert
 
 # View full details and prompt text in terminal
 omabot info account-expert
+
+# List available bar icon styles
+omabot icons
+
+# Set bar icon style
+omabot set-icon sparkles
 
 # Add a custom personal bot prompt
 omabot add "Security Reviewer" --category "Coding" --prompt "Analyze code for OWASP Top 10 vulnerabilities"
@@ -154,14 +173,14 @@ omarchy-shell dorneles.omabot open
 # Toggle popup
 omarchy-shell dorneles.omabot toggle
 
+# Cycle bar icon
+omarchy-shell dorneles.omabot cycleIcon
+
+# Set specific icon
+omarchy-shell dorneles.omabot setIcon "brain"
+
 # Trigger data synchronization
 omarchy-shell dorneles.omabot refresh
-
-# Open directly with search filter
-omarchy-shell dorneles.omabot search "marketing"
-
-# Copy prompt by slug
-omarchy-shell dorneles.omabot copy "account-expert"
 ```
 
 ---
@@ -171,9 +190,9 @@ omarchy-shell dorneles.omabot copy "account-expert"
 ```
 omabot/
 ├── manifest.json            # Omarchy plugin manifest & configuration schema
-├── BarWidget.qml            # Top bar widget with robot icon & popout coordinator
+├── BarWidget.qml            # Top bar widget with customizable icon & popup
 ├── Panel.qml                # Popup window (Search, List, Full Detail Sheet, Footer)
-├── Model.js                 # Data filtering, ranking, favorites, recents & categories
+├── Model.js                 # Data filtering, ranking, icon resolution & categories
 ├── data/
 │   └── bots.json            # Pre-bundled offline dataset (136 original AI bots)
 ├── scripts/

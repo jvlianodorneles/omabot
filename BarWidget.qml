@@ -13,6 +13,8 @@ BarWidget {
   moduleName: "dorneles.omabot"
 
   readonly property bool showLabelSetting: setting("showLabel", false)
+  readonly property string iconStyleSetting: setting("iconStyle", "robot")
+  readonly property string customIconSetting: setting("customIcon", "")
   readonly property int syncIntervalHoursSetting: Number(setting("syncIntervalHours", 12))
   readonly property string syncScriptPath: Qt.resolvedUrl("scripts/omabot-sync.py").toString().replace(/^file:\/\//, "")
   readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/omarchy/omabot"
@@ -20,6 +22,9 @@ BarWidget {
   readonly property string favoritesFilePath: stateDir + "/favorites.json"
   readonly property string recentsFilePath: stateDir + "/recents.json"
   readonly property string customBotsFilePath: stateDir + "/custom_bots.json"
+
+  // Active bar icon glyph
+  readonly property string activeBarIcon: Model.resolveBarIcon(iconStyleSetting, customIconSetting)
 
   // Bot dataset & filter state
   property var allBots: []
@@ -48,6 +53,25 @@ BarWidget {
 
   function togglePopup() {
     botPopup.open = !botPopup.open
+  }
+
+  function updateSetting(key, val) {
+    var entry = { id: root.moduleName }
+    for (var k in root.settings) if (k !== "id") entry[k] = root.settings[k]
+    entry[key] = val
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function") {
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+    }
+  }
+
+  function cycleIconStyle() {
+    var next = Model.nextIconStyle(iconStyleSetting)
+    updateSetting("iconStyle", next)
+  }
+
+  function setIconStyle(styleName) {
+    updateSetting("iconStyle", styleName)
   }
 
   function triggerSync() {
@@ -216,6 +240,8 @@ BarWidget {
     function toggle(): void { root.togglePopup() }
     function refresh(): void { root.triggerSync() }
     function sync(): void { root.triggerSync() }
+    function cycleIcon(): void { root.cycleIconStyle() }
+    function setIcon(styleName: string): void { root.setIconStyle(styleName) }
     function favs(): void {
       root.openPopup()
       root.activeScope = "favorites"
@@ -242,23 +268,25 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  // Top Bar Button with Robot Icon
+  // Top Bar Button with Always-Active State and Icon Customization
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical || !root.showLabelSetting ? "󰚩" : "󰚩 omabot"
-    active: botPopup.open
-    dimmed: !botPopup.open
+    text: root.vertical || !root.showLabelSetting ? root.activeBarIcon : (root.activeBarIcon + " omabot")
+    active: true // Always active status
+    dimmed: false // Never dimmed
     useActiveColor: true
     activeColor: bar ? bar.urgent : Color.urgent
     fontSize: Style.font.body
     horizontalMargin: 8
     verticalPadding: 2
-    tooltipText: "Omabot • AI Bot & Prompt Directory\n──────────────────────────────\n• Left-click: Open Bot Directory\n• Middle-click: Sync Latest Bots"
+    tooltipText: "Omabot • AI Bot & Prompt Directory\n──────────────────────────────\n• Left-click: Open Bot Directory\n• Right-click: Cycle Bar Icon (" + root.iconStyleSetting + ")\n• Middle-click: Sync Latest Bots"
 
     onPressed: function(btn) {
-      if (btn === Qt.MiddleButton) {
+      if (btn === Qt.RightButton) {
+        root.cycleIconStyle()
+      } else if (btn === Qt.MiddleButton) {
         root.triggerSync()
       } else {
         root.togglePopup()
@@ -777,7 +805,7 @@ BarWidget {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.activeScope === "favorites" ? "⭐" : (root.activeScope === "recent" ? "🕒" : "󰚩")
+              text: root.activeScope === "favorites" ? "⭐" : (root.activeScope === "recent" ? "🕒" : root.activeBarIcon)
               color: Qt.darker(Color.popups.text, 1.8)
               font.family: Style.font.family
               font.pixelSize: Style.space(36)

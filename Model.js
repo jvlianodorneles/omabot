@@ -1,6 +1,49 @@
 // Model.js - Advanced search, ranking, categories, tool icons, and state management for Omabot
 .pragma library
 
+var ICON_STYLES = [
+  { id: "robot", icon: "󰚩", name: "Robot" },
+  { id: "sparkles", icon: "󱐋", name: "Sparkles" },
+  { id: "brain", icon: "󰘦", name: "Brain" },
+  { id: "prompt", icon: "󰅩", name: "Prompt" },
+  { id: "bot", icon: "󱚡", name: "Bot" },
+  { id: "chip", icon: "󰍛", name: "Chip" },
+  { id: "terminal", icon: "󰆍", name: "Terminal" },
+  { id: "alien", icon: "󰚥", name: "Alien" }
+];
+
+/**
+ * Resolves the bar icon character from setting or custom input.
+ */
+function resolveBarIcon(iconStyle, customIcon) {
+  if (customIcon && typeof customIcon === "string" && customIcon.trim().length > 0) {
+    return customIcon.trim();
+  }
+  var style = (iconStyle || "robot").toLowerCase();
+  for (var i = 0; i < ICON_STYLES.length; i++) {
+    if (ICON_STYLES[i].id === style) {
+      return ICON_STYLES[i].icon;
+    }
+  }
+  return "󰚩";
+}
+
+/**
+ * Cycles to the next available icon style.
+ */
+function nextIconStyle(currentStyle) {
+  var style = (currentStyle || "robot").toLowerCase();
+  var idx = 0;
+  for (var i = 0; i < ICON_STYLES.length; i++) {
+    if (ICON_STYLES[i].id === style) {
+      idx = i;
+      break;
+    }
+  }
+  var nextIdx = (idx + 1) % ICON_STYLES.length;
+  return ICON_STYLES[nextIdx].id;
+}
+
 /**
  * Parses raw bots JSON string into a structured array of bot objects.
  */

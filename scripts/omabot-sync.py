@@ -1,43 +1,62 @@
 #!/usr/bin/env python3
 """
-omabot-sync.py — AI Bot Directory Synchronizer & Power CLI for Omarchy
-Data source: https://github.com/elie222/botdirectory.ai
+omabot-sync.py - Sync engine, prompt manager, and CLI for Omabot (Omarchy AI Bot Directory).
 """
 
-import sys
 import os
+import sys
 import json
-import urllib.request
-import urllib.parse
-import subprocess
 import argparse
-import tempfile
-import glob
+import subprocess
 import shutil
+import tempfile
 
+UPSTREAM_REPO = "https://github.com/elie222/botdirectory.ai.git"
+SOURCE_REPO = "https://github.com/elie222/botdirectory.ai"
 STATE_DIR = os.path.expanduser("~/.local/state/omarchy/omabot")
 CACHE_FILE = os.path.join(STATE_DIR, "bots.json")
 FAVORITES_FILE = os.path.join(STATE_DIR, "favorites.json")
 RECENTS_FILE = os.path.join(STATE_DIR, "recents.json")
 CUSTOM_BOTS_FILE = os.path.join(STATE_DIR, "custom_bots.json")
-BUILTIN_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bots.json")
-SOURCE_REPO = "https://github.com/elie222/botdirectory.ai"
+SHELL_CONFIG_FILE = os.path.expanduser("~/.config/omarchy/shell.json")
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PLUGIN_ROOT = os.path.dirname(SCRIPT_DIR)
+BUILTIN_DATA = os.path.join(PLUGIN_ROOT, "data", "bots.json")
+
+ICON_PRESETS = {
+    "robot": ("󰚩", "Robot (Default)"),
+    "sparkles": ("󱐋", "Sparkles / AI"),
+    "brain": ("󰘦", "Neural Brain"),
+    "prompt": ("󰅩", "Code / Prompt"),
+    "bot": ("󱚡", "Modern Bot"),
+    "chip": ("󰍛", "Processor / Chip"),
+    "terminal": ("󰆍", "Terminal Cursor"),
+    "alien": ("󰚥", "Alien Bot"),
+}
 
 
 def ensure_state_dir():
     os.makedirs(STATE_DIR, exist_ok=True)
 
 
-def load_json_file(path, fallback=None):
-    if fallback is None:
-        fallback = []
+def notify_desktop(title, message, icon="dialog-information"):
+    try:
+        subprocess.run(["notify-send", "-a", "Omabot", "-i", icon, title, message], check=False)
+    except Exception:
+        pass
+
+
+def load_json_file(path, default=None):
+    if default is None:
+        default = []
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            pass
-    return fallback
+            return default
+    return default
 
 
 def save_json_file(path, data):
@@ -46,131 +65,154 @@ def save_json_file(path, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def load_all_bots():
-    bots = load_json_file(CACHE_FILE, None)
-    if bots is None:
-        bots = load_json_file(BUILTIN_DATA, [])
-    custom = load_json_file(CUSTOM_BOTS_FILE, [])
-    for c in custom:
-        c["isCustom"] = True
-    return bots + custom
-
-
-def parse_frontmatter(content, slug):
-    name = slug.replace("-", " ").title()
-    category = "General"
-    contributor = ""
-    contributor_url = ""
-    integrations = []
-    prompt = ""
+def parse_frontmatter(content):
+    metadata = {}
+    body = content
 
     if content.startswith("---"):
         parts = content.split("---", 2)
         if len(parts) >= 3:
-            fm_text = parts[1]
-            prompt = parts[2].strip()
-            for line in fm_text.splitlines():
-                line = line.strip()
-                if line.startswith("name:"):
-                    name = line.split("name:", 1)[1].strip().strip("\"'")
-                elif line.startswith("category:"):
-                    category = line.split("category:", 1)[1].strip().strip("\"'")
-                elif line.startswith("contributor:"):
-                    contributor = line.split("contributor:", 1)[1].strip().strip("\"'")
-                elif line.startswith("contributor_url:"):
-                    contributor_url = line.split("contributor_url:", 1)[1].strip().strip("\"'")
-                elif line.startswith("integrations:"):
-                    raw_ints = line.split("integrations:", 1)[1].strip()
-                    raw_ints = raw_ints.strip("[]").replace("\"", "").replace("'", "")
-                    integrations = [i.strip() for i in raw_ints.split(",") if i.strip()]
-    else:
-        prompt = content.strip()
+            fm_text = parts[1].strip()
+            body = parts[2].strip()
+            in_integrations = False
+            integrations_list = []
 
-    return {
-        "slug": slug,
-        "name": name,
-        "category": category or "General",
-        "contributor": contributor,
-        "contributor_url": contributor_url,
-        "integrations": integrations,
-        "prompt": prompt,
-    }
+            for line in fm_text.splitlines():
+                line_str = line.strip()
+                if not line_str or line_str.startswith("#"):
+                    continue
+
+                if line.startswith("integrations:"):
+                    in_integrations = True
+                    integrations_list = []
+                    continue
+
+                if in_integrations:
+                    if line.startswith("  - ") or line.startswith("- "):
+                        val = line.split("-", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            integrations_list.append(val)
+                        continue
+                    else:
+                        in_integrations = False
+                        metadata["integrations"] = integrations_list
+
+                if ":" in line:
+                    key, val = line.split(":", 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    metadata[key] = val
+
+            if in_integrations and integrations_list:
+                metadata["integrations"] = integrations_list
+
+    return metadata, body
 
 
 def sync_bots():
     ensure_state_dir()
-    print(f"🔄 Syncing bot directory from {SOURCE_REPO}...")
+    print("⏳ Synchronizing bot directory from botdirectory.ai...")
 
-    tmp_dir = tempfile.mkdtemp()
-    try:
-        cmd = ["git", "clone", "--depth=1", SOURCE_REPO, tmp_dir]
-        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=25)
-        if res.returncode != 0:
-            raise RuntimeError("Git clone failed")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        repo_dir = os.path.join(temp_dir, "repo")
+        clone_cmd = [
+            "git", "clone", "--depth", "1",
+            "--filter=blob:none", "--sparse",
+            UPSTREAM_REPO, repo_dir
+        ]
 
-        bot_files = glob.glob(os.path.join(tmp_dir, "bots", "*.md"))
-        if not bot_files:
-            raise RuntimeError("No bot files found")
+        try:
+            subprocess.run(clone_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["git", "sparse-checkout", "set", "content/bots"], cwd=repo_dir, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"Error cloning repository: {e}")
+            if os.path.exists(BUILTIN_DATA) and not os.path.exists(CACHE_FILE):
+                shutil.copy(BUILTIN_DATA, CACHE_FILE)
+            return
+
+        bots_dir = os.path.join(repo_dir, "content", "bots")
+        if not os.path.exists(bots_dir):
+            print("Could not locate content/bots directory in upstream repo.")
+            return
 
         bots = []
-        for path in bot_files:
-            slug = os.path.basename(path).replace(".md", "")
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            parsed = parse_frontmatter(content, slug)
-            bots.append(parsed)
+        for root_dir, _, files in os.walk(bots_dir):
+            for file in sorted(files):
+                if file.endswith(".md") and not file.startswith("_"):
+                    file_path = os.path.join(root_dir, file)
+                    slug = os.path.splitext(file)[0]
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        meta, prompt = parse_frontmatter(content)
+                        name = meta.get("title", slug.replace("-", " ").title())
+                        category = meta.get("category", "General")
+                        contributor = meta.get("contributor", "")
+                        contributor_url = meta.get("contributorUrl", "")
+                        integrations = meta.get("integrations", [])
 
-        bots.sort(key=lambda x: x.get("name", "").lower())
+                        bots.append({
+                            "name": name,
+                            "slug": slug,
+                            "category": category,
+                            "contributor": contributor,
+                            "contributor_url": contributor_url,
+                            "integrations": integrations,
+                            "prompt": prompt
+                        })
+                    except Exception as err:
+                        print(f"Skipping {file}: {err}")
 
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(bots, f, indent=2, ensure_ascii=False)
+        if bots:
+            save_json_file(CACHE_FILE, bots)
+            if os.path.exists(BUILTIN_DATA):
+                try:
+                    with open(BUILTIN_DATA, "w", encoding="utf-8") as f:
+                        json.dump(bots, f, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+            print(f"✨ Successfully synced {len(bots)} bot prompts to {CACHE_FILE}!")
+            notify_desktop("Omabot Directory Synced", f"{len(bots)} bots updated from botdirectory.ai", "emblem-default")
+        else:
+            print("No bot files found during synchronization.")
 
-        print(f"✅ Successfully synced {len(bots)} bots to {CACHE_FILE}")
-        return True
 
-    except Exception as e:
-        print(f"⚠️ Network sync failed ({e}). Keeping existing cache.")
-        if not os.path.exists(CACHE_FILE) and os.path.exists(BUILTIN_DATA):
-            shutil.copy(BUILTIN_DATA, CACHE_FILE)
-        return False
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+def load_all_bots():
+    ensure_state_dir()
+    bots = []
+    if os.path.exists(CACHE_FILE):
+        bots = load_json_file(CACHE_FILE, [])
+    elif os.path.exists(BUILTIN_DATA):
+        bots = load_json_file(BUILTIN_DATA, [])
+
+    customs = load_json_file(CUSTOM_BOTS_FILE, [])
+    for c in customs:
+        c["isCustom"] = True
+    return bots + customs
 
 
-def copy_to_clipboard(text, bot_name=None):
-    if not text:
-        return False
-    copied = False
+def copy_by_slug(slug_or_name):
+    bots = load_all_bots()
+    target = None
+    for b in bots:
+        if b.get("slug") == slug_or_name or b.get("name", "").lower() == slug_or_name.lower():
+            target = b
+            break
 
-    # Try wl-copy (Wayland)
+    if not target:
+        print(f"Bot '{slug_or_name}' not found.")
+        sys.exit(1)
+
+    prompt = target.get("prompt", "")
     try:
-        p = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        p.communicate(input=text.encode("utf-8"))
-        if p.returncode == 0:
-            copied = True
-    except FileNotFoundError:
-        pass
-
-    # Try xclip (X11)
-    if not copied:
-        try:
-            p = subprocess.Popen(["xclip", "-selection", "clipboard"], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            p.communicate(input=text.encode("utf-8"))
-            if p.returncode == 0:
-                copied = True
-        except FileNotFoundError:
-            pass
-
-    # Send desktop notification if available
-    if copied and bot_name:
-        try:
-            title = "Omabot Prompt Copied"
-            msg = f"'{bot_name}' prompt copied to clipboard ({len(text)} chars)"
-            subprocess.Popen(["notify-send", title, msg, "-i", "dialog-information", "-a", "Omabot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
-
-    return copied
+        proc = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE)
+        proc.communicate(input=prompt.encode("utf-8"))
+        print(f"📋 Copied prompt for '{target.get('name')}' to clipboard!")
+        notify_desktop(f"Prompt Copied: {target.get('name')}", "Prompt copied to clipboard!", "edit-copy")
+        record_recent(target.get("slug", target.get("name")))
+    except Exception as e:
+        print(f"Could not copy to clipboard: {e}")
+        print("\nPrompt content:\n" + prompt)
 
 
 def record_recent(slug):
@@ -182,105 +224,130 @@ def record_recent(slug):
 
 
 def toggle_favorite(slug):
-    favorites = load_json_file(FAVORITES_FILE, [])
-    if slug in favorites:
-        favorites.remove(slug)
-        action = "Removed from"
+    favs = load_json_file(FAVORITES_FILE, [])
+    if slug in favs:
+        favs.remove(slug)
+        print(f"☆ Removed from favorites: {slug}")
+        notify_desktop("Favorite Removed", f"Removed '{slug}' from favorites", "starred")
     else:
-        favorites.append(slug)
-        action = "Added to"
-    save_json_file(FAVORITES_FILE, favorites)
-    print(f"⭐ {action} favorites: {slug}")
+        favs.append(slug)
+        print(f"⭐ Added to favorites: {slug}")
+        notify_desktop("Favorite Added", f"Added '{slug}' to favorites", "starred")
+    save_json_file(FAVORITES_FILE, favs)
 
 
-def copy_by_slug(slug_or_name):
-    bots = load_all_bots()
-    target = None
-    slug_q = slug_or_name.lower().strip()
-    for b in bots:
-        if b.get("slug", "").lower() == slug_q or b.get("name", "").lower() == slug_q:
-            target = b
-            break
-
-    if not target:
-        for b in bots:
-            if slug_q in b.get("slug", "").lower() or slug_q in b.get("name", "").lower():
-                target = b
-                break
-
-    if target:
-        prompt = target.get("prompt", "")
-        slug = target.get("slug", target.get("name"))
-        if copy_to_clipboard(prompt, target.get("name")):
-            record_recent(slug)
-            print(f"📋 Copied prompt for '{target.get('name')}' to clipboard!")
-        else:
-            print(f"Prompt for '{target.get('name')}':\n\n{prompt}")
-    else:
-        print(f"❌ Bot '{slug_or_name}' not found.")
-
-
-def add_custom_bot(name, category, prompt, contributor=None):
-    custom = load_json_file(CUSTOM_BOTS_FILE, [])
+def add_custom_bot(name, category, prompt, author="User"):
+    customs = load_json_file(CUSTOM_BOTS_FILE, [])
     slug = name.lower().replace(" ", "-").replace("/", "-")
     
-    new_bot = {
-        "slug": slug,
+    customs = [c for c in customs if c.get("slug") != slug]
+    customs.append({
         "name": name,
+        "slug": slug,
         "category": category or "Custom",
-        "contributor": contributor or "User",
+        "contributor": author,
         "contributor_url": "",
         "integrations": [],
-        "prompt": prompt.strip()
-    }
-    
-    # Replace if exists
-    custom = [c for c in custom if c.get("slug") != slug]
-    custom.append(new_bot)
-    save_json_file(CUSTOM_BOTS_FILE, custom)
+        "prompt": prompt,
+        "isCustom": True
+    })
+    save_json_file(CUSTOM_BOTS_FILE, customs)
     print(f"✨ Custom bot '{name}' added successfully! (slug: {slug})")
+    notify_desktop("Custom Bot Added", f"'{name}' added to your personal library", "document-new")
 
 
 def remove_custom_bot(slug):
-    custom = load_json_file(CUSTOM_BOTS_FILE, [])
-    before = len(custom)
-    custom = [c for c in custom if c.get("slug") != slug and c.get("name") != slug]
-    if len(custom) < before:
-        save_json_file(CUSTOM_BOTS_FILE, custom)
+    customs = load_json_file(CUSTOM_BOTS_FILE, [])
+    filtered = [c for c in customs if c.get("slug") != slug]
+    if len(filtered) < len(customs):
+        save_json_file(CUSTOM_BOTS_FILE, filtered)
         print(f"🗑️ Removed custom bot '{slug}'")
     else:
-        print(f"❌ Custom bot '{slug}' not found.")
+        print(f"Custom bot '{slug}' not found.")
 
 
 def view_bot_info(slug_or_name):
     bots = load_all_bots()
     target = None
-    slug_q = slug_or_name.lower().strip()
     for b in bots:
-        if b.get("slug", "").lower() == slug_q or b.get("name", "").lower() == slug_q:
+        if b.get("slug") == slug_or_name or b.get("name", "").lower() == slug_or_name.lower():
             target = b
             break
-            
-    if not target:
-        for b in bots:
-            if slug_q in b.get("slug", "").lower() or slug_q in b.get("name", "").lower():
-                target = b
-                break
 
     if not target:
-        print(f"❌ Bot '{slug_or_name}' not found.")
-        return
+        print(f"Bot '{slug_or_name}' not found.")
+        sys.exit(1)
 
     print("\n" + "=" * 60)
     print(f"🤖 \033[1m{target.get('name')}\033[0m")
-    print(f"🏷️  Category: \033[36m{target.get('category', 'General')}\033[0m")
+    print(f"🏷️  Category: {target.get('category')}")
     if target.get("contributor"):
-        print(f"👤 Author: \033[33m@{target.get('contributor')}\033[0m ({target.get('contributor_url', '')})")
+        url = f" ({target.get('contributor_url')})" if target.get("contributor_url") else ""
+        print(f"👤 Author: @{target.get('contributor')}{url}")
     if target.get("integrations"):
         print(f"🛠️  Integrations: {', '.join(target.get('integrations'))}")
     print("-" * 60)
     print(f"{target.get('prompt')}")
     print("=" * 60 + "\n")
+
+
+def list_icons():
+    print("\n🎨 Available Omabot Bar Icon Styles:")
+    print("=" * 60)
+    for k, (glyph, desc) in ICON_PRESETS.items():
+        print(f"• \033[1m{k:<12}\033[0m : {glyph}  ({desc})")
+    print("=" * 60)
+    print("Commands:")
+    print("  omabot set-icon <style>     Set preset bar icon (e.g. omabot set-icon sparkles)")
+    print("  omabot set-icon <glyph>     Set custom Unicode/Nerd Font character\n")
+
+
+def set_bar_icon(icon_name):
+    if not os.path.exists(SHELL_CONFIG_FILE):
+        print(f"Error: Shell config not found at {SHELL_CONFIG_FILE}")
+        return
+
+    try:
+        with open(SHELL_CONFIG_FILE, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        layout = config.get("bar", {}).get("layout", {})
+        found = False
+        for sec in ["left", "center", "right"]:
+            items = layout.get(sec, [])
+            for item in items:
+                if isinstance(item, dict) and item.get("id") == "dorneles.omabot":
+                    if icon_name in ICON_PRESETS:
+                        item["iconStyle"] = icon_name
+                        item.pop("customIcon", None)
+                        glyph, desc = ICON_PRESETS[icon_name]
+                        print(f"✨ Set Omabot bar icon to '{icon_name}' ({glyph} - {desc})")
+                    else:
+                        item["customIcon"] = icon_name
+                        print(f"✨ Set Omabot bar icon to custom character: {icon_name}")
+                    found = True
+                    break
+            if found:
+                break
+
+        if not found:
+            print("Adding dorneles.omabot to right section of shell.json...")
+            if "right" not in layout:
+                layout["right"] = []
+            entry = {"id": "dorneles.omabot"}
+            if icon_name in ICON_PRESETS:
+                entry["iconStyle"] = icon_name
+            else:
+                entry["customIcon"] = icon_name
+            layout["right"].append(entry)
+
+        with open(SHELL_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+        # Notify running shell via IPC
+        subprocess.run(["omarchy-shell", "dorneles.omabot", "setIcon", icon_name], capture_output=True)
+    except Exception as e:
+        print(f"Error updating shell.json: {e}")
 
 
 def list_bots(category_filter=None):
@@ -366,6 +433,11 @@ def main():
     info_p = subparsers.add_parser("info", help="View full details and prompt of a bot")
     info_p.add_argument("slug", help="Bot slug or name")
 
+    subparsers.add_parser("icons", help="List available bar icon styles")
+    
+    icon_p = subparsers.add_parser("set-icon", help="Set the bar icon style")
+    icon_p.add_argument("style", help="Icon style (robot, sparkles, brain, prompt, bot, chip, terminal, alien) or custom glyph")
+
     add_p = subparsers.add_parser("add", help="Add a custom bot")
     add_p.add_argument("name", help="Bot name")
     add_p.add_argument("--category", "-c", default="Custom", help="Category")
@@ -395,6 +467,10 @@ def main():
         list_bots("recent")
     elif args.command == "info":
         view_bot_info(args.slug)
+    elif args.command == "icons":
+        list_icons()
+    elif args.command == "set-icon":
+        set_bar_icon(args.style)
     elif args.command == "add":
         add_custom_bot(args.name, args.category, args.prompt, args.author)
     elif args.command == "remove-custom":

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "dorneles.omabot",
   "name": "Omabot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Dorneles",
   "license": "MIT",
   "description": "AI Bot & Prompt Directory for Omarchy: Search, explore, and 1-click copy AI bot prompts from botdirectory.ai with category filtering.",
@@ -20,6 +20,8 @@
     "defaultSection": "right",
     "defaults": {
       "showLabel": false,
+      "iconStyle": "robot",
+      "customIcon": "",
       "defaultCategory": "All",
       "syncIntervalHours": 12
     },
@@ -29,7 +31,31 @@
         "type": "boolean",
         "label": "Show Label on Bar",
         "defaultValue": false,
-        "description": "Display 'omabot' label next to the robot icon on the bar."
+        "description": "Display 'omabot' label next to the icon on the bar."
+      },
+      {
+        "key": "iconStyle",
+        "type": "enum",
+        "label": "Bar Icon Style",
+        "options": [
+          "robot",
+          "sparkles",
+          "brain",
+          "prompt",
+          "bot",
+          "chip",
+          "terminal",
+          "alien"
+        ],
+        "defaultValue": "robot",
+        "description": "Preset icon displayed on the status bar (Robot, Sparkles, Brain, Prompt, Bot, Chip, Terminal, Alien)."
+      },
+      {
+        "key": "customIcon",
+        "type": "string",
+        "label": "Custom Bar Icon",
+        "defaultValue": "",
+        "description": "Custom Unicode/Nerd Font character to display on the bar."
       },
       {
         "key": "defaultCategory",
