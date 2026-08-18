@@ -79,6 +79,30 @@ omarchy plugin enable dorneles.omabot
 
 ---
 
+## 🗑️ Uninstallation
+
+To disable or completely remove Omabot:
+
+### Quick Uninstall Script
+
+```bash
+cd ~/omabot
+./uninstall.sh
+```
+
+### Manual Removal
+
+```bash
+# 1. Disable the bar widget
+omarchy plugin disable dorneles.omabot
+
+# 2. Remove the symlinks and CLI binary
+rm -rf ~/.config/omarchy/plugins/dorneles.omabot
+rm -f ~/.local/bin/omabot
+```
+
+---
+
 ## ⌨️ Hyprland Keybinding (Optional)
 
 Add a shortcut to `~/.config/hypr/hyprland.conf`:
