@@ -54,12 +54,7 @@ Panel {
     favoritesFile.reload()
     recentsFile.reload()
     customBotsFile.reload()
-    Qt.callLater(function() {
-      if (searchInput) {
-        searchInput.forceActiveFocus()
-        searchInput.selectAll()
-      }
-    })
+    searchFocusTimer.restart()
   }
 
   function close() {
@@ -296,6 +291,19 @@ Panel {
     onTriggered: root.copiedSlug = ""
   }
 
+  // Delay focus to searchInput until after KeyboardPanel's 75ms focus prime
+  // completes and the compositor has granted keyboard focus to the surface.
+  Timer {
+    id: searchFocusTimer
+    interval: 100
+    onTriggered: {
+      if (root.opened && searchInput) {
+        searchInput.forceActiveFocus()
+        searchInput.selectAll()
+      }
+    }
+  }
+
   // Native Popup Window
   KeyboardPanel {
     id: panel
@@ -303,13 +311,14 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
-    focusTarget: searchInput
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth ? panel.fittedContentWidth(Style.space(480)) : Style.space(480)
     contentHeight: Style.space(560)
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: searchInput.activeFocus || nameInputField.activeFocus || promptEditInput.activeFocus
 
       onCloseRequested: {
         if (root.editingBot) {
@@ -321,6 +330,43 @@ Panel {
         }
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) {
+        if (root.selectedBot !== null || root.editingBot !== null) return
+        if (dy > 0) {
+          // Down
+          botListView.currentIndex = Math.min(botListView.count - 1, botListView.currentIndex + 1)
+        } else if (dy < 0) {
+          // Up
+          if (botListView.currentIndex <= 0) {
+            botListView.currentIndex = -1
+            searchInput.forceActiveFocus()
+            searchInput.selectAll()
+          } else {
+            botListView.currentIndex = botListView.currentIndex - 1
+          }
+        }
+      }
+      onActivateRequested: {
+        if (root.selectedBot !== null || root.editingBot !== null) return
+        if (botListView.currentIndex >= 0 && botListView.currentIndex < botListView.count) {
+          root.selectedBot = root.filteredBots[botListView.currentIndex]
+        }
+      }
+      onReturnRequested: {
+        if (root.selectedBot !== null || root.editingBot !== null) return
+        if (botListView.currentIndex >= 0 && botListView.currentIndex < botListView.count) {
+          root.selectedBot = root.filteredBots[botListView.currentIndex]
+        } else {
+          searchInput.forceActiveFocus()
+          searchInput.selectAll()
+        }
+      }
+      onTextKey: function(t) {
+        if (t === "/" || t === "s") {
+          searchInput.forceActiveFocus()
+          searchInput.selectAll()
+        }
+      }
 
       // Top-level container
       Item {
@@ -413,12 +459,18 @@ Panel {
                           root.close()
                           event.accepted = true
                         }
-                      } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        botListView.forceActiveFocus()
+                      } else if (event.key === Qt.Key_Down) {
+                        keyCatcher.forceActiveFocus()
                         if (botListView.count > 0 && botListView.currentIndex < 0) {
                           botListView.currentIndex = 0
                         }
                         event.accepted = true
+                      } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (root.filteredBots && root.filteredBots.length > 0) {
+                          var targetIdx = (botListView.currentIndex >= 0 && botListView.currentIndex < root.filteredBots.length) ? botListView.currentIndex : 0
+                          root.selectedBot = root.filteredBots[targetIdx]
+                          event.accepted = true
+                        }
                       }
                     }
 
