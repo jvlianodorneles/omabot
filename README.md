@@ -6,6 +6,10 @@
 
 **Omabot** is a native, modern, flat-design status bar plugin and popup directory for [Omarchy](https://github.com/jvlianodorneles/omabot) that lets you search, explore, read full prompts, and 1-click copy AI bot system prompts from [botdirectory.ai](https://github.com/elie222/botdirectory.ai).
 
+<p align="center">
+  <img src="preview.png" alt="Omabot Preview" width="600">
+</p>
+
 ---
 
 ## ✨ Features
