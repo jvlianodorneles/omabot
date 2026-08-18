@@ -1,0 +1,2 @@
+# omabot
+AI bot directory
