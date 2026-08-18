@@ -281,7 +281,7 @@ Panel {
               radius: Style.cornerRadius > 0 ? Style.cornerRadius : 6
 
               readonly property bool isFocused: searchInput.activeFocus
-              readonly property bool isHot: searchMouse.containsMouse || searchInput.hovered
+              readonly property bool isHot: searchMouse.containsMouse
               readonly property var borderSpecObj: Border.controlSpec(
                 isFocused ? "focus" : (isHot ? "hover-cursor" : "normal"),
                 Color.popups.text,
@@ -759,7 +759,6 @@ Panel {
                       color: Qt.darker(Color.popups.text, 1.4)
                       font.family: Style.font.family
                       font.pixelSize: Style.font.caption
-                      lineHeight: 1.15
                       maximumLineCount: 2
                       elide: Text.ElideRight
                       wrapMode: Text.WordWrap
@@ -810,10 +809,8 @@ Panel {
                 // Row click opens full detail view
                 MouseArea {
                   id: itemMouseArea
-                  anchors.left: parent.left
-                  anchors.right: copyBtn.left
-                  anchors.top: parent.top
-                  anchors.bottom: parent.bottom
+                  anchors.fill: parent
+                  anchors.rightMargin: Style.space(42)
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
@@ -1032,7 +1029,7 @@ Panel {
             anchors.right: parent.right
             anchors.topMargin: Style.space(8)
             spacing: Style.space(6)
-            visible: detailView.bot.integrations && detailView.bot.integrations.length > 0
+            visible: !!(detailView.bot && detailView.bot.integrations && detailView.bot.integrations.length > 0)
 
             Repeater {
               model: detailView.bot.integrations || []
@@ -1092,7 +1089,6 @@ Panel {
                 color: Color.popups.text
                 font.family: Style.font.family
                 font.pixelSize: Style.font.body
-                lineHeight: 1.25
                 wrapMode: Text.WordWrap
                 readOnly: true
                 selectByMouse: true
