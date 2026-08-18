@@ -273,8 +273,8 @@ BarWidget {
     id: botPopup
     anchorItem: button
     bar: root.bar
-    contentWidth: fittedContentWidth(Style.space(450))
-    contentHeight: Style.space(540)
+    contentWidth: fittedContentWidth(Style.space(480))
+    contentHeight: Style.space(550)
     open: false
     triggerMode: "click"
 
@@ -309,7 +309,7 @@ BarWidget {
         anchors.fill: parent
         visible: root.selectedBot === null
 
-        // --- SECTION 1: HEADER (Search Bar & Filter Tabs) ---
+        // --- SECTION 1: HEADER (Search Bar & Filter Toolbar) ---
         Item {
           id: headerSection
           anchors.top: parent.top
@@ -456,7 +456,7 @@ BarWidget {
             }
           }
 
-          // 2. Filter Toolbar (Scope Tabs on Left + Category Dropdown on Right)
+          // 2. Filter Toolbar (Scope Pills on Left + Category Selector on Right)
           Item {
             id: filterToolbar
             anchors.top: searchContainer.bottom
@@ -466,7 +466,7 @@ BarWidget {
             height: Style.space(26)
             z: 20
 
-            // Left: Scope Pills (All / ⭐ Favorites / 🕒 History / 📁 Custom)
+            // Left: Scope Tabs
             Row {
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
@@ -592,7 +592,7 @@ BarWidget {
                 }
               }
 
-              // "📁 Custom" Pill (if user added custom bots)
+              // "📁 Custom" Pill
               Rectangle {
                 visible: root.customBots.length > 0
                 height: Style.space(24)
@@ -902,11 +902,12 @@ BarWidget {
                 anchors.rightMargin: Style.space(10)
                 spacing: Style.space(8)
 
-                // Left Column: Bot Details
+                // Left Column: Bot Details (Title on line 1, Badges on line 2, Preview on line 3)
                 ColumnLayout {
                   Layout.fillWidth: true
-                  spacing: Style.space(3)
+                  spacing: Style.space(4)
 
+                  // Line 1: Star + Bot Name
                   RowLayout {
                     Layout.fillWidth: true
                     spacing: Style.space(6)
@@ -928,7 +929,7 @@ BarWidget {
                       }
                     }
 
-                    // Bot Name
+                    // Bot Name (Full Width, elides properly)
                     Text {
                       text: modelData.name || "Unnamed Bot"
                       color: Color.popups.text
@@ -936,8 +937,15 @@ BarWidget {
                       font.pixelSize: Style.font.body
                       font.bold: true
                       elide: Text.ElideRight
-                      Layout.maximumWidth: itemContainer.width - Style.space(130)
+                      Layout.fillWidth: true
                     }
+                  }
+
+                  // Line 2: Category Tag + Integration Badges with Icons
+                  Flow {
+                    Layout.fillWidth: true
+                    spacing: Style.space(4)
+                    visible: !!modelData.category || (modelData.integrations && modelData.integrations.length > 0)
 
                     // Category Tag
                     Rectangle {
@@ -958,9 +966,9 @@ BarWidget {
                       }
                     }
 
-                    // Integration Badges Preview with Tool Icons (up to 2 in row)
+                    // Integration Badges Preview with Tool Icons
                     Repeater {
-                      model: (modelData.integrations || []).slice(0, 2)
+                      model: modelData.integrations || []
                       delegate: Rectangle {
                         height: Style.space(16)
                         implicitWidth: toolTagRow.implicitWidth + Style.space(8)
@@ -991,11 +999,9 @@ BarWidget {
                         }
                       }
                     }
-
-                    Item { Layout.fillWidth: true }
                   }
 
-                  // Prompt Preview (2 lines max)
+                  // Line 3: Prompt Preview (2 lines max)
                   Text {
                     text: Model.cleanPreview(modelData.prompt)
                     color: Qt.darker(Color.popups.text, 1.4)
