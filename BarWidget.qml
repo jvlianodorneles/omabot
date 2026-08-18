@@ -11,6 +11,7 @@ BarWidget {
   moduleName: "dorneles.omabot"
 
   readonly property bool showLabelSetting: setting("showLabel", false)
+  readonly property int syncIntervalHoursSetting: Number(setting("syncIntervalHours", 12))
   readonly property string syncScriptPath: Qt.resolvedUrl("scripts/omabot-sync.py").toString().replace(/^file:\/\//, "")
 
   function open(): void {
@@ -48,6 +49,15 @@ BarWidget {
       root.injectPanel()
       Qt.callLater(root.injectPanel)
     }
+  }
+
+  // Periodic automatic background synchronizer
+  Timer {
+    id: autoSyncTimer
+    interval: Math.max(1, root.syncIntervalHoursSetting) * 3600 * 1000
+    running: root.syncIntervalHoursSetting > 0
+    repeat: true
+    onTriggered: root.refresh()
   }
 
   // IPC Handler for Hyprland keybindings, Omarchy menu, and CLI control

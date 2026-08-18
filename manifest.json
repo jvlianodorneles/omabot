@@ -20,7 +20,8 @@
     "defaultSection": "right",
     "defaults": {
       "showLabel": false,
-      "defaultCategory": "All"
+      "defaultCategory": "All",
+      "syncIntervalHours": 12
     },
     "schema": [
       {
@@ -36,18 +37,25 @@
         "label": "Default Category",
         "options": [
           "All",
-          "Coding",
-          "Design",
           "Marketing",
           "Ops",
           "Personal",
           "Productivity",
           "Sales",
-          "Success",
-          "Writing"
+          "Success"
         ],
         "defaultValue": "All",
         "description": "Initial category selected when opening the bot directory."
+      },
+      {
+        "key": "syncIntervalHours",
+        "type": "integer",
+        "label": "Auto-sync Interval (Hours)",
+        "min": 1,
+        "max": 168,
+        "step": 1,
+        "defaultValue": 12,
+        "description": "Interval in hours to periodically refresh bot prompts in the background from botdirectory.ai."
       }
     ]
   }

@@ -11,13 +11,14 @@ import urllib.request
 import urllib.parse
 import subprocess
 import argparse
+import tempfile
+import glob
+import shutil
 
 STATE_DIR = os.path.expanduser("~/.local/state/omarchy/omabot")
 CACHE_FILE = os.path.join(STATE_DIR, "bots.json")
 BUILTIN_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "bots.json")
 SOURCE_REPO = "https://github.com/elie222/botdirectory.ai"
-GITHUB_API_TREE = "https://api.github.com/repos/elie222/botdirectory.ai/git/trees/main?recursive=1"
-RAW_BASE_URL = "https://raw.githubusercontent.com/elie222/botdirectory.ai/main/"
 
 
 def ensure_state_dir():
@@ -79,54 +80,40 @@ def sync_bots():
     ensure_state_dir()
     print(f"🔄 Syncing bot directory from {SOURCE_REPO}...")
 
-    # Load existing bots to preserve custom/featured items
-    existing = load_local_bots()
-    bots_dict = {b["slug"]: b for b in existing}
-
+    tmp_dir = tempfile.mkdtemp()
     try:
-        req = urllib.request.Request(
-            GITHUB_API_TREE,
-            headers={"User-Agent": "omabot-sync/1.0", "Accept": "application/vnd.github.v3+json"},
-        )
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        cmd = ["git", "clone", "--depth=1", SOURCE_REPO, tmp_dir]
+        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
+        if res.returncode != 0:
+            raise RuntimeError("Git clone failed")
 
-        bot_paths = [
-            item["path"]
-            for item in data.get("tree", [])
-            if item["path"].startswith("bots/") and item["path"].endswith(".md")
-        ]
+        bot_files = glob.glob(os.path.join(tmp_dir, "bots", "*.md"))
+        if not bot_files:
+            raise RuntimeError("No bot files found")
 
-        print(f"📦 Found {len(bot_paths)} bot definitions. Updating...")
-        updated_count = 0
-
-        for path in bot_paths:
+        bots = []
+        for path in bot_files:
             slug = os.path.basename(path).replace(".md", "")
-            raw_url = RAW_BASE_URL + urllib.parse.quote(path)
-            try:
-                r = urllib.request.Request(raw_url, headers={"User-Agent": "omabot-sync/1.0"})
-                with urllib.request.urlopen(r, timeout=6) as r_resp:
-                    content = r_resp.read().decode("utf-8", errors="ignore")
-                    parsed = parse_frontmatter(content, slug)
-                    bots_dict[slug] = parsed
-                    updated_count += 1
-            except Exception:
-                continue
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            parsed = parse_frontmatter(content, slug)
+            bots.append(parsed)
 
-        all_bots = list(bots_dict.values())
-        all_bots.sort(key=lambda x: x.get("name", "").lower())
+        bots.sort(key=lambda x: x.get("name", "").lower())
 
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(all_bots, f, indent=2, ensure_ascii=False)
+            json.dump(bots, f, indent=2, ensure_ascii=False)
 
-        print(f"✅ Successfully synced {len(all_bots)} bots to {CACHE_FILE}")
+        print(f"✅ Successfully synced {len(bots)} bots to {CACHE_FILE}")
         return True
+
     except Exception as e:
         print(f"⚠️ Network sync failed ({e}). Keeping existing cache.")
         if not os.path.exists(CACHE_FILE) and os.path.exists(BUILTIN_DATA):
-            import shutil
             shutil.copy(BUILTIN_DATA, CACHE_FILE)
         return False
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def copy_to_clipboard(text):
@@ -208,7 +195,6 @@ def copy_by_slug(slug_or_name):
             break
 
     if not target:
-        # Partial match
         for b in bots:
             if slug_q in b.get("slug", "").lower() or slug_q in b.get("name", "").lower():
                 target = b
@@ -264,7 +250,6 @@ def main():
     else:
         ensure_state_dir()
         if not os.path.exists(CACHE_FILE) and os.path.exists(BUILTIN_DATA):
-            import shutil
             shutil.copy(BUILTIN_DATA, CACHE_FILE)
         list_bots()
 
