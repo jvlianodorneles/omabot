@@ -22,7 +22,7 @@
 * **⭐ Favorites System**: Star your favorite bots (`󰓎` / `󰓏`) for instant 1-click access under the `"⭐ Favorites"` filter.
 * **🕒 Recent History**: Automatically tracks your recently copied bot prompts under the `"🕒 Recent"` filter.
 * **⚡ Integration Badges**: Automatically detects and displays tool tags with their Nerd Font icons (`󰒱 Slack`, `󰤼 Figma`, `󰇮 Gmail`, `󰆑 Gong`, `󰊤 GitHub`, `󰆼 Airtable`, `󰆑 Salesforce`, `󰸗 Google Calendar`...).
-* **📁 Custom User Bots**: Add your own custom personal/team prompts via CLI (`omabot add`) or configuration files.
+* **📁 Built-in Custom Bot Creator & Editor**: Create (`+ New Bot`), edit (`󰏫`), delete (`󰆴`), or clone/fork (`󰑈`) custom prompts directly from the GUI or terminal (`omabot add`).
 * **📋 1-Click Clipboard Copy**: One-click copying to system clipboard (Wayland `wl-copy` / X11) with instant visual feedback (icon changes to checkmark `󰄬`) and desktop notifications.
 * **🎨 Native System Theme**: Follows system colors, typography, border radii, and dark/light modes out of the box.
 * **⚡ Offline-Ready + Auto Sync**: Pre-bundled with 136 original bot prompts; periodically auto-syncs from GitHub upstream.

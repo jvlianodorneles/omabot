@@ -236,24 +236,35 @@ def toggle_favorite(slug):
     save_json_file(FAVORITES_FILE, favs)
 
 
-def add_custom_bot(name, category, prompt, author="User"):
+def add_custom_bot(name, category, prompt, author="User", integrations=None, old_slug=None):
     customs = load_json_file(CUSTOM_BOTS_FILE, [])
     slug = name.lower().replace(" ", "-").replace("/", "-")
     
+    if old_slug:
+        customs = [c for c in customs if c.get("slug") != old_slug]
     customs = [c for c in customs if c.get("slug") != slug]
-    customs.append({
-        "name": name,
+
+    int_list = []
+    if isinstance(integrations, list):
+        int_list = integrations
+    elif isinstance(integrations, str) and integrations.strip():
+        int_list = [i.strip() for i in integrations.split(",") if i.strip()]
+
+    new_bot = {
+        "name": name.strip(),
         "slug": slug,
-        "category": category or "Custom",
-        "contributor": author,
+        "category": (category or "Custom").strip(),
+        "contributor": author.strip() if author else "User",
         "contributor_url": "",
-        "integrations": [],
-        "prompt": prompt,
+        "integrations": int_list,
+        "prompt": prompt.strip(),
         "isCustom": True
-    })
+    }
+    customs.insert(0, new_bot)
     save_json_file(CUSTOM_BOTS_FILE, customs)
-    print(f"✨ Custom bot '{name}' added successfully! (slug: {slug})")
-    notify_desktop("Custom Bot Added", f"'{name}' added to your personal library", "document-new")
+    print(f"✨ Custom bot '{name}' saved successfully! (slug: {slug})")
+    notify_desktop("Custom Bot Saved", f"'{name}' saved to your personal library", "document-new")
+    return new_bot
 
 
 def remove_custom_bot(slug):
@@ -362,6 +373,8 @@ def list_bots(category_filter=None):
             recents = load_json_file(RECENTS_FILE, [])
             bot_map = {b.get("slug", b.get("name")): b for b in bots}
             bots = [bot_map[r] for r in recents if r in bot_map]
+        elif cat_lower == "custom" or cat_lower == "📁 custom":
+            bots = [b for b in bots if b.get("isCustom")]
         elif cat_lower != "all":
             bots = [b for b in bots if b.get("category", "").lower() == cat_lower]
 
@@ -438,11 +451,13 @@ def main():
     icon_p = subparsers.add_parser("set-icon", help="Set the bar icon style")
     icon_p.add_argument("style", help="Icon style (robot, sparkles, brain, prompt, bot, chip, terminal, alien) or custom glyph")
 
-    add_p = subparsers.add_parser("add", help="Add a custom bot")
+    add_p = subparsers.add_parser("add", help="Add or edit a custom bot")
     add_p.add_argument("name", help="Bot name")
     add_p.add_argument("--category", "-c", default="Custom", help="Category")
     add_p.add_argument("--prompt", "-p", required=True, help="Prompt text")
     add_p.add_argument("--author", "-a", default="User", help="Author name")
+    add_p.add_argument("--integrations", "-i", default="", help="Comma-separated tools (e.g. 'Slack, GitHub')")
+    add_p.add_argument("--old-slug", default=None, help="Previous slug if renaming/editing")
 
     rm_p = subparsers.add_parser("remove-custom", help="Remove a custom bot")
     rm_p.add_argument("slug", help="Custom bot slug")
@@ -472,7 +487,7 @@ def main():
     elif args.command == "set-icon":
         set_bar_icon(args.style)
     elif args.command == "add":
-        add_custom_bot(args.name, args.category, args.prompt, args.author)
+        add_custom_bot(args.name, args.category, args.prompt, args.author, args.integrations, args.old_slug)
     elif args.command == "remove-custom":
         remove_custom_bot(args.slug)
     elif args.command == "open":
