@@ -30,12 +30,13 @@ BarWidget {
   property var selectedBot: null
 
   property string searchQuery: ""
+  property string activeScope: "all" // "all", "favorites", "recent", "custom"
   property string selectedCategory: "All"
   property string copiedSlug: ""
   property bool isSyncing: false
 
-  readonly property var categories: Model.extractCategories(allBots, customBots, favoritesList, recentsList)
-  readonly property var filteredBots: Model.filterBots(allBots, customBots, searchQuery, selectedCategory, favoritesSet, recentsList)
+  readonly property var categories: Model.extractCategories(allBots, customBots)
+  readonly property var filteredBots: Model.filterBots(allBots, customBots, searchQuery, activeScope, selectedCategory, favoritesSet, recentsList)
 
   function openPopup() {
     botPopup.open = true
@@ -215,6 +216,14 @@ BarWidget {
     function toggle(): void { root.togglePopup() }
     function refresh(): void { root.triggerSync() }
     function sync(): void { root.triggerSync() }
+    function favs(): void {
+      root.openPopup()
+      root.activeScope = "favorites"
+    }
+    function recents(): void {
+      root.openPopup()
+      root.activeScope = "recent"
+    }
     function search(query: string): void {
       root.openPopup()
       root.searchQuery = query
@@ -264,8 +273,8 @@ BarWidget {
     id: botPopup
     anchorItem: button
     bar: root.bar
-    contentWidth: fittedContentWidth(Style.space(430))
-    contentHeight: Style.space(530)
+    contentWidth: fittedContentWidth(Style.space(450))
+    contentHeight: Style.space(540)
     open: false
     triggerMode: "click"
 
@@ -300,13 +309,13 @@ BarWidget {
         anchors.fill: parent
         visible: root.selectedBot === null
 
-        // --- SECTION 1: HEADER (Search Bar & Category Filter) ---
+        // --- SECTION 1: HEADER (Search Bar & Filter Tabs) ---
         Item {
           id: headerSection
           anchors.top: parent.top
           anchors.left: parent.left
           anchors.right: parent.right
-          height: searchContainer.height + categoryFilterRow.height + Style.space(14)
+          height: searchContainer.height + filterToolbar.height + Style.space(14)
 
           // 1. Search Bar (Top Element)
           BorderSurface {
@@ -385,7 +394,7 @@ BarWidget {
                 Text {
                   anchors.fill: parent
                   visible: !searchInput.text && !searchInput.inputMethodComposing
-                  text: "Search bots..."
+                  text: "Search bots, prompts, tools (Slack, GitHub)..."
                   color: Qt.darker(Color.popups.text, 1.8)
                   font.family: Style.font.family
                   font.pixelSize: Style.font.body
@@ -447,27 +456,179 @@ BarWidget {
             }
           }
 
-          // 2. Category Filter (Bottom Element)
-          Row {
-            id: categoryFilterRow
+          // 2. Filter Toolbar (Scope Tabs on Left + Category Dropdown on Right)
+          Item {
+            id: filterToolbar
             anchors.top: searchContainer.bottom
             anchors.topMargin: Style.space(8)
+            anchors.left: parent.left
             anchors.right: parent.right
-            spacing: Style.space(8)
+            height: Style.space(26)
             z: 20
 
-            Text {
-              text: "CATEGORIES"
-              color: Qt.darker(Color.popups.text, 1.5)
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              font.letterSpacing: 1
+            // Left: Scope Pills (All / ⭐ Favorites / 🕒 History / 📁 Custom)
+            Row {
+              anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(4)
+
+              // "All" Pill
+              Rectangle {
+                height: Style.space(24)
+                implicitWidth: allPillText.implicitWidth + Style.space(14)
+                radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                color: root.activeScope === "all"
+                  ? Style.selectedFillFor(Color.popups.text, Color.accent)
+                  : (allPillMouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
+                border.width: 1
+                border.color: root.activeScope === "all" ? Color.accent : Qt.rgba(Color.popups.text.r, Color.popups.text.g, Color.popups.text.b, 0.12)
+
+                Text {
+                  id: allPillText
+                  anchors.centerIn: parent
+                  text: "All"
+                  color: root.activeScope === "all" ? Color.accent : Color.popups.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: root.activeScope === "all"
+                }
+
+                MouseArea {
+                  id: allPillMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.activeScope = "all"
+                }
+              }
+
+              // "⭐ Favorites" Pill
+              Rectangle {
+                height: Style.space(24)
+                implicitWidth: favPillRow.implicitWidth + Style.space(12)
+                radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                color: root.activeScope === "favorites"
+                  ? Qt.rgba(0.96, 0.62, 0.04, 0.18)
+                  : (favPillMouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
+                border.width: 1
+                border.color: root.activeScope === "favorites" ? "#F59E0B" : Qt.rgba(Color.popups.text.r, Color.popups.text.g, Color.popups.text.b, 0.12)
+
+                Row {
+                  id: favPillRow
+                  anchors.centerIn: parent
+                  spacing: Style.space(4)
+
+                  Text {
+                    text: "⭐ Favorites"
+                    color: root.activeScope === "favorites" ? "#F59E0B" : Color.popups.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: root.activeScope === "favorites"
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    visible: root.favoritesList.length > 0
+                    text: "(" + root.favoritesList.length + ")"
+                    color: root.activeScope === "favorites" ? "#F59E0B" : Qt.darker(Color.popups.text, 1.6)
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+
+                MouseArea {
+                  id: favPillMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.activeScope = "favorites"
+                }
+              }
+
+              // "🕒 History" Pill
+              Rectangle {
+                height: Style.space(24)
+                implicitWidth: histPillRow.implicitWidth + Style.space(12)
+                radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                color: root.activeScope === "recent"
+                  ? Style.selectedFillFor(Color.popups.text, Color.accent)
+                  : (histPillMouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
+                border.width: 1
+                border.color: root.activeScope === "recent" ? Color.accent : Qt.rgba(Color.popups.text.r, Color.popups.text.g, Color.popups.text.b, 0.12)
+
+                Row {
+                  id: histPillRow
+                  anchors.centerIn: parent
+                  spacing: Style.space(4)
+
+                  Text {
+                    text: "🕒 History"
+                    color: root.activeScope === "recent" ? Color.accent : Color.popups.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: root.activeScope === "recent"
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+
+                  Text {
+                    visible: root.recentsList.length > 0
+                    text: "(" + root.recentsList.length + ")"
+                    color: root.activeScope === "recent" ? Color.accent : Qt.darker(Color.popups.text, 1.6)
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                }
+
+                MouseArea {
+                  id: histPillMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.activeScope = "recent"
+                }
+              }
+
+              // "📁 Custom" Pill (if user added custom bots)
+              Rectangle {
+                visible: root.customBots.length > 0
+                height: Style.space(24)
+                implicitWidth: customPillText.implicitWidth + Style.space(14)
+                radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
+                color: root.activeScope === "custom"
+                  ? Style.selectedFillFor(Color.popups.text, Color.accent)
+                  : (customPillMouse.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
+                border.width: 1
+                border.color: root.activeScope === "custom" ? Color.accent : Qt.rgba(Color.popups.text.r, Color.popups.text.g, Color.popups.text.b, 0.12)
+
+                Text {
+                  id: customPillText
+                  anchors.centerIn: parent
+                  text: "📁 Custom"
+                  color: root.activeScope === "custom" ? Color.accent : Color.popups.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: root.activeScope === "custom"
+                }
+
+                MouseArea {
+                  id: customPillMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.activeScope = "custom"
+                }
+              }
             }
 
+            // Right: Category Dropdown
             BorderSurface {
               id: categorySelector
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
               height: Style.space(24)
               implicitWidth: catContentRow.implicitWidth + Style.space(16)
               radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
@@ -481,7 +642,6 @@ BarWidget {
 
               color: Style.controlFill(categoryPopup.opened, isHot, Color.popups.text, Color.accent)
               borderSpec: borderSpecObj
-              anchors.verticalCenter: parent.verticalCenter
 
               Row {
                 id: catContentRow
@@ -489,11 +649,11 @@ BarWidget {
                 spacing: Style.space(6)
 
                 Text {
-                  text: root.selectedCategory
-                  color: root.selectedCategory.indexOf("⭐") !== -1 ? "#F59E0B" : Color.popups.text
+                  text: root.selectedCategory === "All" ? "Category: All" : root.selectedCategory
+                  color: root.selectedCategory !== "All" ? Model.categoryColor(root.selectedCategory, Color.accent) : Color.popups.text
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
-                  font.bold: true
+                  font.bold: root.selectedCategory !== "All"
                   anchors.verticalCenter: parent.verticalCenter
                 }
 
@@ -521,7 +681,7 @@ BarWidget {
                 id: categoryPopup
                 x: categorySelector.width - width
                 y: categorySelector.height + Style.space(4)
-                width: Style.space(170)
+                width: Style.space(160)
                 implicitHeight: Math.min(Style.space(260), catListView.contentHeight + Style.space(8))
                 padding: Style.space(4)
                 focus: true
@@ -563,7 +723,7 @@ BarWidget {
 
                       Text {
                         text: modelData
-                        color: modelData === root.selectedCategory ? Color.accent : Color.popups.text
+                        color: modelData === root.selectedCategory ? Color.accent : Model.categoryColor(modelData, Color.popups.text)
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption
                         font.bold: modelData === root.selectedCategory
@@ -617,7 +777,7 @@ BarWidget {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "󰚩" // nf-md-robot
+              text: root.activeScope === "favorites" ? "⭐" : (root.activeScope === "recent" ? "🕒" : "󰚩")
               color: Qt.darker(Color.popups.text, 1.8)
               font.family: Style.font.family
               font.pixelSize: Style.space(36)
@@ -625,7 +785,13 @@ BarWidget {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.searchQuery ? "No bots found for '" + root.searchQuery + "'" : "No bots in this category"
+              text: {
+                if (root.searchQuery) return "No bots found for '" + root.searchQuery + "'"
+                if (root.activeScope === "favorites") return "No favorite bots yet"
+                if (root.activeScope === "recent") return "No recently copied bots"
+                if (root.activeScope === "custom") return "No custom bots yet"
+                return "No bots in this category"
+              }
               color: Qt.darker(Color.popups.text, 1.4)
               font.family: Style.font.family
               font.pixelSize: Style.font.body
@@ -634,7 +800,12 @@ BarWidget {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: "Try a different search term or category filter"
+              text: {
+                if (root.activeScope === "favorites") return "Click the star icon (󰓎) on any bot to pin it here"
+                if (root.activeScope === "recent") return "Copied prompts will automatically appear here"
+                if (root.activeScope === "custom") return "Add your own bots with 'omabot add <name>'"
+                return "Try a different search term or category filter"
+              }
               color: Qt.darker(Color.popups.text, 1.8)
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
@@ -718,7 +889,7 @@ BarWidget {
                 anchors.topMargin: 1
                 color: isCurrent
                   ? Style.selectedFillFor(Color.popups.text, Color.accent)
-                  : (itemMouseArea.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
+                  : (rowHoverArea.containsMouse ? Style.hoverFillFor(Color.popups.text, Color.accent) : "transparent")
                 radius: Style.cornerRadius > 0 ? Style.cornerRadius : 4
               }
 
@@ -765,7 +936,7 @@ BarWidget {
                       font.pixelSize: Style.font.body
                       font.bold: true
                       elide: Text.ElideRight
-                      Layout.maximumWidth: itemContainer.width - Style.space(120)
+                      Layout.maximumWidth: itemContainer.width - Style.space(130)
                     }
 
                     // Category Tag
@@ -784,6 +955,40 @@ BarWidget {
                         font.family: Style.font.family
                         font.pixelSize: Style.font.caption - 1
                         font.bold: true
+                      }
+                    }
+
+                    // Integration Badges Preview with Tool Icons (up to 2 in row)
+                    Repeater {
+                      model: (modelData.integrations || []).slice(0, 2)
+                      delegate: Rectangle {
+                        height: Style.space(16)
+                        implicitWidth: toolTagRow.implicitWidth + Style.space(8)
+                        radius: height / 2
+                        color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.09)
+
+                        Row {
+                          id: toolTagRow
+                          anchors.centerIn: parent
+                          spacing: Style.space(3)
+
+                          Text {
+                            text: Model.toolIcon(modelData)
+                            color: Color.accent
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption - 1
+                            anchors.verticalCenter: parent.verticalCenter
+                          }
+
+                          Text {
+                            text: modelData
+                            color: Color.accent
+                            font.family: Style.font.family
+                            font.pixelSize: Style.font.caption - 2
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                          }
+                        }
                       }
                     }
 
@@ -845,7 +1050,7 @@ BarWidget {
 
               // Row click opens full detail view
               MouseArea {
-                id: itemMouseArea
+                id: rowHoverArea
                 anchors.fill: parent
                 anchors.rightMargin: Style.space(42)
                 hoverEnabled: true
@@ -1059,7 +1264,7 @@ BarWidget {
           }
         }
 
-        // --- Integrations Row (if any) ---
+        // --- Integrations Row with Tool Icons ---
         Flow {
           id: integrationsFlow
           anchors.top: detailHeader.bottom
@@ -1072,21 +1277,34 @@ BarWidget {
           Repeater {
             model: detailView.bot.integrations || []
             delegate: Rectangle {
-              height: Style.space(20)
-              implicitWidth: intLabel.implicitWidth + Style.space(12)
+              height: Style.space(22)
+              implicitWidth: intDetailRow.implicitWidth + Style.space(14)
               radius: height / 2
               color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.12)
               border.width: 1
               border.color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.25)
 
-              Text {
-                id: intLabel
+              Row {
+                id: intDetailRow
                 anchors.centerIn: parent
-                text: "⚡ " + modelData
-                color: Color.accent
-                font.family: Style.font.family
-                font.pixelSize: Style.font.caption - 1
-                font.bold: true
+                spacing: Style.space(5)
+
+                Text {
+                  text: Model.toolIcon(modelData)
+                  color: Color.accent
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                  text: modelData
+                  color: Color.accent
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption - 1
+                  font.bold: true
+                  anchors.verticalCenter: parent.verticalCenter
+                }
               }
             }
           }

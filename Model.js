@@ -1,4 +1,4 @@
-// Model.js - Advanced search, ranking, categories, and state management for Omabot
+// Model.js - Advanced search, ranking, categories, tool icons, and state management for Omabot
 .pragma library
 
 /**
@@ -17,18 +17,10 @@ function parseBots(jsonString) {
 }
 
 /**
- * Extracts all available categories, prepending special smart views (Favorites & Recent).
+ * Extracts pure topic categories (excluding smart view tabs).
  */
-function extractCategories(bots, customBots, favoritesList, recentsList) {
+function extractCategories(bots, customBots) {
   var list = ["All"];
-  
-  if (favoritesList && favoritesList.length > 0) {
-    list.push("⭐ Favorites");
-  }
-  if (recentsList && recentsList.length > 0) {
-    list.push("🕒 Recent");
-  }
-
   var map = {};
   var allItems = (bots || []).concat(customBots || []);
   
@@ -50,11 +42,41 @@ function extractCategories(bots, customBots, favoritesList, recentsList) {
     list.push(sortedCats[j]);
   }
 
-  if (customBots && customBots.length > 0 && !map["Custom"]) {
-    list.push("📁 Custom");
-  }
-
   return list;
+}
+
+/**
+ * Maps integration tool name to an appropriate Nerd Font icon.
+ */
+function toolIcon(tool) {
+  if (!tool) return "󱐋";
+  var lower = String(tool).toLowerCase().trim();
+  if (lower.indexOf("github") !== -1) return "󰊤";
+  if (lower.indexOf("gitlab") !== -1) return "󰮠";
+  if (lower.indexOf("slack") !== -1) return "󰒱";
+  if (lower.indexOf("discord") !== -1) return "󰙯";
+  if (lower.indexOf("figma") !== -1) return "󰤼";
+  if (lower.indexOf("gmail") !== -1 || lower.indexOf("email") !== -1 || lower.indexOf("mail") !== -1) return "󰇮";
+  if (lower.indexOf("calendar") !== -1) return "󰸗";
+  if (lower.indexOf("sheet") !== -1 || lower.indexOf("table") !== -1) return "󰈮";
+  if (lower.indexOf("doc") !== -1) return "󰈙";
+  if (lower.indexOf("drive") !== -1) return "󰉋";
+  if (lower.indexOf("reddit") !== -1) return "󰑍";
+  if (lower.indexOf("linkedin") !== -1 || lower.indexOf("navigator") !== -1) return "󰌻";
+  if (lower === "x" || lower.indexOf("twitter") !== -1) return "󰤫";
+  if (lower.indexOf("youtube") !== -1) return "󰗃";
+  if (lower.indexOf("notion") !== -1) return "󱙺";
+  if (lower.indexOf("zoom") !== -1) return "󰕧";
+  if (lower.indexOf("apple") !== -1 || lower.indexOf("icloud") !== -1) return "󰀵";
+  if (lower.indexOf("amazon") !== -1 || lower.indexOf("whole foods") !== -1 || lower.indexOf("costco") !== -1) return "󰄗";
+  if (lower.indexOf("stripe") !== -1 || lower.indexOf("salesforce") !== -1 || lower.indexOf("quickbooks") !== -1 || lower.indexOf("xero") !== -1) return "󰆑";
+  if (lower.indexOf("database") !== -1 || lower.indexOf("snowflake") !== -1 || lower.indexOf("crm") !== -1 || lower.indexOf("cms") !== -1 || lower.indexOf("airtable") !== -1) return "󰆼";
+  if (lower.indexOf("claude") !== -1 || lower.indexOf("codex") !== -1 || lower.indexOf("cursor") !== -1 || lower.indexOf("code") !== -1) return "󰅩";
+  if (lower.indexOf("search") !== -1 || lower.indexOf("trends") !== -1) return "󰍉";
+  if (lower.indexOf("podcast") !== -1 || lower.indexOf("rss") !== -1) return "󰑈";
+  if (lower.indexOf("zendesk") !== -1 || lower.indexOf("intercom") !== -1 || lower.indexOf("help") !== -1) return "󰮥";
+  if (lower.indexOf("google") !== -1) return "󰊭";
+  return "󱐋";
 }
 
 /**
@@ -97,19 +119,21 @@ function scoreBot(bot, query) {
 }
 
 /**
- * Filters and ranks bots based on search query, category filter, favorites, and recents.
+ * Filters and ranks bots based on search query, active tab scope, category filter, favorites, and recents.
  */
-function filterBots(allBots, customBots, query, selectedCategory, favoritesSet, recentsList) {
+function filterBots(allBots, customBots, query, activeScope, selectedCategory, favoritesSet, recentsList) {
   var pool = [];
-  var isRecentFilter = selectedCategory === "🕒 Recent";
-  var isFavFilter = selectedCategory === "⭐ Favorites";
-  var isCustomFilter = selectedCategory === "📁 Custom";
+  var isRecentFilter = activeScope === "recent" || selectedCategory === "🕒 Recent" || selectedCategory === "Recent";
+  var isFavFilter = activeScope === "favorites" || selectedCategory === "⭐ Favorites" || selectedCategory === "Favorites";
+  var isCustomFilter = activeScope === "custom" || selectedCategory === "📁 Custom" || selectedCategory === "Custom";
 
   // Combine standard bots and custom bots
   var combined = (allBots || []).concat(
     (customBots || []).map(function(b) {
-      b.isCustom = true;
-      return b;
+      var copy = {};
+      for (var k in b) copy[k] = b[k];
+      copy.isCustom = true;
+      return copy;
     })
   );
 
@@ -173,7 +197,7 @@ function filterBots(allBots, customBots, query, selectedCategory, favoritesSet, 
     results.push(bot);
   }
 
-  // Sort by search score if querying, else alphabetically
+  // Sort by search score if querying, else maintain order / favorites
   if (hasQuery) {
     results.sort(function(a, b) {
       return (b._searchScore || 0) - (a._searchScore || 0);
