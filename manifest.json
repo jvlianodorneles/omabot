@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "dorneles.omabot",
+  "name": "Omabot",
+  "version": "1.0.0",
+  "author": "Dorneles",
+  "license": "MIT",
+  "description": "AI Bot & Prompt Directory for Omarchy: Search, explore, and 1-click copy AI bot prompts from botdirectory.ai with category filtering.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Omabot",
+    "description": "AI Bot & Prompt Directory",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showLabel": false,
+      "defaultCategory": "All"
+    },
+    "schema": [
+      {
+        "key": "showLabel",
+        "type": "boolean",
+        "label": "Show Label on Bar",
+        "defaultValue": false,
+        "description": "Display 'omabot' label next to the robot icon on the bar."
+      },
+      {
+        "key": "defaultCategory",
+        "type": "enum",
+        "label": "Default Category",
+        "options": [
+          "All",
+          "Coding",
+          "Design",
+          "Marketing",
+          "Ops",
+          "Personal",
+          "Productivity",
+          "Sales",
+          "Success",
+          "Writing"
+        ],
+        "defaultValue": "All",
+        "description": "Initial category selected when opening the bot directory."
+      }
+    ]
+  }
+}
